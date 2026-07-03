@@ -49,9 +49,9 @@
         try {
             // We use a free cors-anywhere proxy to bypass browser security blocks
             const proxyUrl = 'https://corsproxy.io/?';
-            const garminUrl = `https://share.garmin.com/Feed/Share/${garminUsername}`;
+            const garminUrl = `https://share.garmin.com/Feed/Share/${FollowBeau}`;
             
-            const response = await fetch(proxyUrl + encodeURIComponent(garminUrl));
+            const response = await fetch(proxyUrl + encodeURIComponent(share.garmin.com/FollowBeau));
             const kmlText = await response.text();
 
             // Use a quick parser to extract coordinates from Garmin's KML text string
