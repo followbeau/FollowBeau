@@ -27,30 +27,120 @@
       border: 3px solid white;
       box-shadow: 0 4px 12px rgba(0,0,0,0.45);
     }
+
+    #status {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      background: white;
+      padding: 10px 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      max-width: 320px;
+    }
   </style>
 </head>
 
 <body>
   <div id="map"></div>
+  <div id="status">Loading map...</div>
 
   <script>
-    mapboxgl.accessToken = "pk.eyJ1IjoiZm9sbG93YmVhdSIsImEiOiJjbXI0Y21yM2gwYXk5MzBwdzBqNGZjenJ6In0.YidGcXlMAmRikwjhWXAO1w";
+    mapboxgl.accessToken = "YOUR_MAPBOX_TOKEN_HERE";
 
-    const testLocation = [-98.5795, 39.8283];
+    const garminUrl = "https://share.garmin.com/Feed/Share/FollowBeau";
+    const startLocation = [-98.5795, 39.8283];
+
+    const statusBox = document.getElementById("status");
+
+    function setStatus(message) {
+      statusBox.textContent = message;
+      console.log(message);
+    }
 
     const map = new mapboxgl.Map({
       container: "map",
       style: "mapbox://styles/mapbox/outdoors-v12",
-      center: testLocation,
+      center: startLocation,
       zoom: 3
     });
 
     const markerElement = document.createElement("div");
     markerElement.className = "dog-marker";
 
-    new mapboxgl.Marker(markerElement)
-      .setLngLat(testLocation)
+    const liveMarker = new mapboxgl.Marker(markerElement)
+      .setLngLat(startLocation)
       .addTo(map);
+
+    async function updateFromGarmin() {
+      try {
+        setStatus("Checking Garmin location...");
+
+        const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(garminUrl);
+        const response = await fetch(proxyUrl);
+
+        if (!response.ok) {
+          setStatus("Garmin feed failed. Status: " + response.status);
+          return;
+        }
+
+        const kmlText = await response.text();
+
+        const parser = new DOMParser();
+        const kmlDoc = parser.parseFromString(kmlText, "text/xml");
+
+        const coordinateElements = kmlDoc.querySelectorAll("coordinates");
+
+        if (coordinateElements.length === 0) {
+          setStatus("No Garmin coordinates found.");
+          console.log(kmlText);
+          return;
+        }
+
+        const coordsText = coordinateElements[0].textContent.trim();
+
+        // Garmin KML format is longitude,latitude,altitude
+        const parts = coordsText.split(",");
+        const lng = Number(parts[0]);
+        const lat = Number(parts[1]);
+
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+          setStatus("Invalid Garmin coordinates: " + coordsText);
+          return;
+        }
+
+        if (lng === 0 || lat === 0) {
+          setStatus("Garmin returned 0,0. Ignoring bad location.");
+          return;
+        }
+
+        liveMarker.setLngLat([lng, lat]);
+
+        map.flyTo({
+          center: [lng, lat],
+          zoom: 13,
+          essential: true
+        });
+
+        setStatus("Live Garmin location updated.");
+
+        console.log("Garmin longitude:", lng);
+        console.log("Garmin latitude:", lat);
+
+      } catch (error) {
+        console.error(error);
+        setStatus("Error checking Garmin location.");
+      }
+    }
+
+    map.on("load", function () {
+      setStatus("Map loaded. Checking Garmin...");
+      updateFromGarmin();
+      setInterval(updateFromGarmin, 300000);
+    });
   </script>
 </body>
 </html>
