@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>FollowBeau</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .dog-marker {
+            width: 50px;
+            height: 50px;
+            background-size: cover;
+            background-position: center;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script>
+ mapboxgl.accessToken = 'pk.eyJ1IjoiZm9sbG93YmVhdSIsImEiOiJjbXI0Y21yM2gwYXk5MzBwdzBqNGZjenJ6In0.YidGcXlMAmRikwjhWXAO1w';
+const dogImageHtmlUrl = 'https://imgur.com/a/oGZirPK';
+    const garminUsername = 'https://share.garmin.com/Feed/Share/FollowBeau';
+
+    // Initialize Mapbox using a clean Outdoor terrain style
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/outdoors-v12',
+        center: [-98.5795, 39.8283], // Default centers on North America initially
+        zoom: 3
+    });
+
+    // Setup the custom dog element styling
+    const el = document.createElement('div');
+    el.className = 'dog-marker';
+    el.style.backgroundImage = `url(${dogImageHtmlUrl})`;
+
+    // Initialize the marker on the map (hidden initially at 0,0)
+    const liveMarker = new mapboxgl.Marker(el).setLngLat([0, 0]).addTo(map);
+
+    async function fetchLiveLocation() {
+        try {
+            // We use a free cors-anywhere proxy to bypass browser security blocks
+            const proxyUrl = 'https://corsproxy.io/?';
+            const garminUrl = `https://share.garmin.com/Feed/Share/${garminUsername}`;
+            
+            const response = await fetch(proxyUrl + encodeURIComponent(garminUrl));
+            const kmlText = await response.text();
+
+            // Use a quick parser to extract coordinates from Garmin's KML text string
+            const parser = new DOMParser();
+            const kmlDoc = parser.parseFromString(kmlText, "text/xml");
+            const coordinatesElement = kmlDoc.querySelector("coordinates");
+
+            if (coordinatesElement) {
+                const coordsString = coordinatesElement.textContent.trim();
+                const [lng, lat] = coordsString.split(',').map(Number);
+
+                if (!isNaN(lng) && !isNaN(lat)) {
+                    // Instantly snap your dog's icon to your coordinates!
+                    liveMarker.setLngLat([lng, lat]);
+                    map.flyTo({ center: [lng, lat], zoom: 13, essential: true });
+                }
+            }
+        } catch (error) {
+            console.error("Error updating live tracking:", error);
+        }
+    }
+
+    // Check for updates every 5 minutes
+    setInterval(fetchLiveLocation, 300000);
+    fetchLiveLocation(); // Run right away when opened
+</script>
+
+</body>
+</html>
