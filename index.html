@@ -1,3 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>FollowBeau</title>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    .dog-marker {
+      width: 50px;
+      height: 50px;
+      background-size: cover;
+      background-position: center;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
 <script>
 mapboxgl.accessToken = 'pk.eyJ1IjoiZm9sbG93YmVhdSIsImEiOiJjbXI0Y21yM2gwYXk5MzBwdzBqNGZjenJ6In0.YidGcXlMAmRikwjhWXAO1w';
 
@@ -5,76 +29,78 @@ const dogImageHtmlUrl = 'RYDER.png';
 const garminUsername = 'FollowBeau';
 
 const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/outdoors-v12',
-    center: [-98.5795, 39.8283],
-    zoom: 3
+  container: 'map',
+  style: 'mapbox://styles/mapbox/outdoors-v12',
+  center: [-98.5795, 39.8283],
+  zoom: 3
 });
 
 const el = document.createElement('div');
 el.className = 'dog-marker';
-el.style.backgroundImage = `url(${dogImageHtmlUrl})`;
+el.style.backgroundImage = `url("${dogImageHtmlUrl}")`;
 
-// Do NOT start marker at [0,0] because that is off Africa
 let liveMarker = null;
 
 async function fetchLiveLocation() {
-    try {
-        const proxyUrl = 'https://corsproxy.io/?';
-        const garminUrl = `https://share.garmin.com/Feed/Share/${garminUsername}`;
+  try {
+    const proxyUrl = 'https://corsproxy.io/?';
+    const garminUrl = `https://share.garmin.com/Feed/Share/${garminUsername}`;
 
-        const response = await fetch(proxyUrl + encodeURIComponent(garminUrl));
-        const kmlText = await response.text();
+    const response = await fetch(proxyUrl + encodeURIComponent(garminUrl));
 
-        const parser = new DOMParser();
-        const kmlDoc = parser.parseFromString(kmlText, "text/xml");
-
-        const coordinatesElement = kmlDoc.querySelector("coordinates");
-
-        if (!coordinatesElement) {
-            console.error("No Garmin coordinates found.");
-            return;
-        }
-
-        const coordsString = coordinatesElement.textContent.trim();
-
-        // Garmin KML format is: longitude,latitude,altitude
-        const parts = coordsString.split(',').map(Number);
-        const lng = parts[0];
-        const lat = parts[1];
-
-        // Prevent bad readings from going to [0,0] off Africa
-        if (
-            !Number.isFinite(lat) ||
-            !Number.isFinite(lng) ||
-            lat === 0 ||
-            lng === 0
-        ) {
-            console.error("Bad Garmin coordinates:", coordsString);
-            return;
-        }
-
-        if (!liveMarker) {
-            liveMarker = new mapboxgl.Marker(el)
-                .setLngLat([lng, lat])
-                .addTo(map);
-        } else {
-            liveMarker.setLngLat([lng, lat]);
-        }
-
-        map.flyTo({
-            center: [lng, lat],
-            zoom: 13,
-            essential: true
-        });
-
-        console.log("Updated Garmin location:", lat, lng);
-
-    } catch (error) {
-        console.error("Error updating live tracking:", error);
+    if (!response.ok) {
+      console.error("Garmin fetch failed:", response.status);
+      return;
     }
+
+    const kmlText = await response.text();
+
+    console.log("Garmin response:", kmlText.slice(0, 300));
+
+    const parser = new DOMParser();
+    const kmlDoc = parser.parseFromString(kmlText, "text/xml");
+
+    const coordinatesElement = kmlDoc.querySelector("coordinates");
+
+    if (!coordinatesElement) {
+      console.error("No coordinates found in Garmin feed.");
+      return;
+    }
+
+    const coordsString = coordinatesElement.textContent.trim();
+    const [lng, lat] = coordsString.split(",").map(Number);
+
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat === 0 ||
+      lng === 0
+    ) {
+      console.error("Bad coordinates:", coordsString);
+      return;
+    }
+
+    if (!liveMarker) {
+      liveMarker = new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
+    } else {
+      liveMarker.setLngLat([lng, lat]);
+    }
+
+    map.flyTo({
+      center: [lng, lat],
+      zoom: 13,
+      essential: true
+    });
+
+  } catch (error) {
+    console.error("Error updating live tracking:", error);
+  }
 }
 
-setInterval(fetchLiveLocation, 300000);
-fetchLiveLocation();
+map.on("load", () => {
+  fetchLiveLocation();
+  setInterval(fetchLiveLocation, 300000);
+});
 </script>
+</body>
+</html>
