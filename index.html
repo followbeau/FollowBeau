@@ -39,7 +39,7 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.25);
       font-family: Arial, sans-serif;
       font-size: 14px;
-      max-width: 320px;
+      max-width: 340px;
     }
   </style>
 </head>
@@ -79,8 +79,8 @@
       try {
         setStatus("Checking Garmin location...");
 
-        const proxyUrl = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(garminUrl);
-        const response = await fetch(proxyUrl);
+        const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(garminUrl);
+        const response = await fetch(proxyUrl + "&cacheBust=" + Date.now());
 
         if (!response.ok) {
           setStatus("Garmin feed failed. Status: " + response.status);
@@ -89,10 +89,22 @@
 
         const kmlText = await response.text();
 
+        if (!kmlText || kmlText.length < 20) {
+          setStatus("Garmin feed returned empty data.");
+          return;
+        }
+
         const parser = new DOMParser();
         const kmlDoc = parser.parseFromString(kmlText, "text/xml");
 
-        const coordinateElements = kmlDoc.querySelectorAll("coordinates");
+        const parserError = kmlDoc.querySelector("parsererror");
+        if (parserError) {
+          setStatus("Garmin feed could not be read as KML.");
+          console.log(kmlText);
+          return;
+        }
+
+        const coordinateElements = Array.from(kmlDoc.querySelectorAll("coordinates"));
 
         if (coordinateElements.length === 0) {
           setStatus("No Garmin coordinates found.");
@@ -100,35 +112,56 @@
           return;
         }
 
-        const coordsText = coordinateElements[0].textContent.trim();
+        let latestLng = null;
+        let latestLat = null;
 
-        // Garmin KML format is longitude,latitude,altitude
-        const parts = coordsText.split(",");
-        const lng = Number(parts[0]);
-        const lat = Number(parts[1]);
+        for (let i = coordinateElements.length - 1; i >= 0; i--) {
+          const coordsText = coordinateElements[i].textContent.trim();
 
-        if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-          setStatus("Invalid Garmin coordinates: " + coordsText);
+          if (!coordsText) continue;
+
+          const coordPairs = coordsText.split(/\s+/);
+
+          for (let j = coordPairs.length - 1; j >= 0; j--) {
+            const parts = coordPairs[j].split(",");
+
+            if (parts.length < 2) continue;
+
+            const lng = Number(parts[0]);
+            const lat = Number(parts[1]);
+
+            if (
+              Number.isFinite(lng) &&
+              Number.isFinite(lat) &&
+              lng !== 0 &&
+              lat !== 0
+            ) {
+              latestLng = lng;
+              latestLat = lat;
+              break;
+            }
+          }
+
+          if (latestLng !== null && latestLat !== null) break;
+        }
+
+        if (latestLng === null || latestLat === null) {
+          setStatus("No valid Garmin location found.");
           return;
         }
 
-        if (lng === 0 || lat === 0) {
-          setStatus("Garmin returned 0,0. Ignoring bad location.");
-          return;
-        }
-
-        liveMarker.setLngLat([lng, lat]);
+        liveMarker.setLngLat([latestLng, latestLat]);
 
         map.flyTo({
-          center: [lng, lat],
+          center: [latestLng, latestLat],
           zoom: 13,
           essential: true
         });
 
-        setStatus("Live Garmin location updated.");
+        setStatus("Live Garmin location updated: " + latestLat + ", " + latestLng);
 
-        console.log("Garmin longitude:", lng);
-        console.log("Garmin latitude:", lat);
+        console.log("Garmin longitude:", latestLng);
+        console.log("Garmin latitude:", latestLat);
 
       } catch (error) {
         console.error(error);
@@ -139,6 +172,8 @@
     map.on("load", function () {
       setStatus("Map loaded. Checking Garmin...");
       updateFromGarmin();
+
+      // Checks for new Garmin location every 5 minutes
       setInterval(updateFromGarmin, 300000);
     });
   </script>
