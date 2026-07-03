@@ -79,7 +79,7 @@
       try {
         setStatus("Checking Garmin location...");
 
-        const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(garminUrl);
+        const proxyUrl = "http://api.allorigins.win/raw?url" + encodeURIComponent(garminUrl);
         const response = await fetch(proxyUrl);
 
         if (!response.ok) {
