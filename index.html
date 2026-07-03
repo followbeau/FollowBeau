@@ -2,105 +2,55 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>FollowBeau</title>
+  <title>FollowBeau Live Map</title>
+
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
+
   <style>
     body { margin: 0; padding: 0; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+
     .dog-marker {
-      width: 50px;
-      height: 50px;
+      width: 56px;
+      height: 56px;
+      background-image: url("RYDER.png");
       background-size: cover;
       background-position: center;
       border-radius: 50%;
       border: 3px solid white;
-      box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.45);
     }
   </style>
 </head>
+
 <body>
-<div id="map"></div>
+  <div id="map"></div>
 
-<script>
-mapboxgl.accessToken = 'pk.eyJ1IjoiZm9sbG93YmVhdSIsImEiOiJjbXI0Y21yM2gwYXk5MzBwdzBqNGZjenJ6In0.YidGcXlMAmRikwjhWXAO1w';
+  <script>
+    mapboxgl.accessToken = "PASTE_YOUR_MAPBOX_TOKEN_HERE";
 
-const dogImageHtmlUrl = 'RYDER.png';
-const garminUsername = 'FollowBeau';
+    const testLocation = [-98.5795, 39.8283];
 
-const map = new mapboxgl.Map({
-  container: 'map',
-  style: 'mapbox://styles/mapbox/outdoors-v12',
-  center: [-98.5795, 39.8283],
-  zoom: 3
-});
-
-const el = document.createElement('div');
-el.className = 'dog-marker';
-el.style.backgroundImage = `url("${dogImageHtmlUrl}")`;
-
-let liveMarker = null;
-
-async function fetchLiveLocation() {
-  try {
-    const proxyUrl = 'https://corsproxy.io/?';
-    const garminUrl = `https://share.garmin.com/Feed/Share/${garminUsername}`;
-
-    const response = await fetch(proxyUrl + encodeURIComponent(garminUrl));
-
-    if (!response.ok) {
-      console.error("Garmin fetch failed:", response.status);
-      return;
-    }
-
-    const kmlText = await response.text();
-
-    console.log("Garmin response:", kmlText.slice(0, 300));
-
-    const parser = new DOMParser();
-    const kmlDoc = parser.parseFromString(kmlText, "text/xml");
-
-    const coordinatesElement = kmlDoc.querySelector("coordinates");
-
-    if (!coordinatesElement) {
-      console.error("No coordinates found in Garmin feed.");
-      return;
-    }
-
-    const coordsString = coordinatesElement.textContent.trim();
-    const [lng, lat] = coordsString.split(",").map(Number);
-
-    if (
-      !Number.isFinite(lat) ||
-      !Number.isFinite(lng) ||
-      lat === 0 ||
-      lng === 0
-    ) {
-      console.error("Bad coordinates:", coordsString);
-      return;
-    }
-
-    if (!liveMarker) {
-      liveMarker = new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
-    } else {
-      liveMarker.setLngLat([lng, lat]);
-    }
-
-    map.flyTo({
-      center: [lng, lat],
-      zoom: 13,
-      essential: true
+    const map = new mapboxgl.Map({
+      container: "map",
+      style: "mapbox://styles/mapbox/outdoors-v12",
+      center: testLocation,
+      zoom: 3
     });
 
-  } catch (error) {
-    console.error("Error updating live tracking:", error);
-  }
-}
+    const markerElement = document.createElement("div");
+    markerElement.className = "dog-marker";
 
-map.on("load", () => {
-  fetchLiveLocation();
-  setInterval(fetchLiveLocation, 300000);
-});
-</script>
+    new mapboxgl.Marker(markerElement)
+      .setLngLat(testLocation)
+      .addTo(map);
+  </script>
 </body>
 </html>
